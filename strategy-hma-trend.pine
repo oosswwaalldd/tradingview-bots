@@ -1,0 +1,93 @@
+//@version=4
+strategy("(Strategy) HMA Signals", overlay = true, initial_capital = 1000, default_qty_value = 1000, default_qty_type = strategy.cash, process_orders_on_close=true)
+
+// Inputs
+tradeDirection = input(defval = "All", title = "Backtest Only Long, Only Shorts or All Setups?", options = ["All", "Longs", "Shorts"])
+enableTrailingStop = input(defval = "No", title = "Enable Trailing Stop?", options = ["Yes", "No"])
+trailingStopPerc = input(defval = 2, title = "Trailing Stop Loss %", minval = .5, step = .5, maxval = 100) / 100
+slPerc = input(defval = 2, title = "Stop Loss %", minval = 0.5, step = 0.5, maxval = 100) / 100
+tpPerc = input(defval = 3, title = "Take Profit %", minval = 0.5, step = 0.5, maxval = 100) / 100
+fromDate = input(title="From Date", type=input.time, defval=timestamp("01 Jan 2021 00:00 -0400"))
+length = input(24)
+src = input(hl2)
+showcross = input(true, "Show cross over/under")
+
+hma(_src, _length)=>
+    wma((2 * wma(_src, _length / 2)) - wma(_src, _length), round(sqrt(_length)))
+    
+hma3(_src, _length)=>
+    p = length/2
+    wma(wma(close,p/3)*3 - wma(close,p/2) - wma(close,p),p)
+
+
+a = hma(src, length)
+b = hma3(src, length)
+c = b > a ? color.lime : color.red
+p1 = plot(a,color=c,linewidth=1,transp=75)
+p2 = plot(b,color=c,linewidth=1,transp=75)
+fill(p1,p2,color=c,transp=55)
+crossdn = a > b and a[1] < b[1]
+crossup = b > a and b[1] < a[1]
+
+// Shapes
+plotshape(showcross and crossdn and (tradeDirection == "All" or tradeDirection == "Shorts") ? a : na, location=location.absolute, style=shape.labeldown, color=color.red, size=size.tiny, text="Sell", textcolor=color.white, transp=0, offset=-1)
+plotshape(showcross and crossup  and (tradeDirection == "All" or tradeDirection == "Longs") ? a : na, location=location.absolute, style=shape.labelup, color=color.green, size=size.tiny, text="Buy", textcolor=color.white, transp=0, offset=-1)
+
+// Conditions
+timePeriod = time >= fromDate
+notInTrade = strategy.position_size == 0
+goLong = crossup and notInTrade and timePeriod and (tradeDirection == "All" or tradeDirection == "Longs")
+goShort = crossdn and notInTrade and timePeriod and (tradeDirection == "All" or tradeDirection == "Shorts")
+
+// Static SL & TP
+longSlLevel = strategy.position_avg_price * (1 - slPerc)
+longTpLevel = strategy.position_avg_price * (1 + tpPerc)
+shortSlLevel = strategy.position_avg_price * (1 + slPerc)
+shortTpLevel = strategy.position_avg_price * (1 - tpPerc)
+
+// Trailing SL
+// Determine trail stop loss prices
+longStopPrice = 0.0, shortStopPrice = 0.0
+
+longStopPrice := if (strategy.position_size > 0)
+    stopValue = low * (1 - trailingStopPerc)
+    max(stopValue, longStopPrice[1])
+else
+    0
+
+shortStopPrice := if (strategy.position_size < 0)
+    stopValue = high * (1 + trailingStopPerc)
+    min(stopValue, shortStopPrice[1])
+else
+    999999
+
+// Long entries
+strategy.entry(id = "long", long = strategy.long, when = goLong)
+strategy.exit("exit", "long", stop = enableTrailingStop == 'Yes' ? longStopPrice : longSlLevel, limit = longTpLevel)
+
+// Short entries
+strategy.entry(id = "short", long = strategy.short, when = goShort)
+strategy.exit("exit", "short", stop = enableTrailingStop == 'Yes' ? shortStopPrice : shortSlLevel, limit = shortTpLevel)
+
+// Plot stop loss values for confirmation
+longTrailingStopLine = plot(series=(enableTrailingStop == 'Yes' and strategy.position_size > 0) ? longStopPrice : na,
+     color=color.red, style=plot.style_stepline,
+     linewidth=1, title="Long Trail Stop")
+     
+shortTrailingStopLine = plot(series=(enableTrailingStop == 'Yes' and strategy.position_size < 0) ? shortStopPrice : na,
+     color=color.red, style=plot.style_stepline,
+     linewidth=1, title="Short Trail Stop")
+     
+// Trailing stop drawings
+entryPlot = plot(low, color=color.rgb(0, 0, 0, 100), style=plot.style_linebr, linewidth=1)
+fill(longTrailingStopLine, entryPlot, color=color.red)
+fill(shortTrailingStopLine, entryPlot, color=color.red)
+
+// Fixed TP/SL drawings
+// longSlPlot = plot(strategy.position_size < 0 ? na : longSlLevel, color=color.red, style=plot.style_linebr, linewidth=1)
+// longTpPlot = plot(strategy.position_size < 0 ? na : longTpLevel, color=color.green, style=plot.style_linebr, linewidth=1)
+// fill(longSlPlot, entryPlot, color=color.red)
+// fill(entryPlot, longTpPlot, color=color.green)
+
+
+
