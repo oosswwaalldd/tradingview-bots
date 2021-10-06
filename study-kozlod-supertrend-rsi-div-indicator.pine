@@ -1,0 +1,73 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ossy1717
+
+//@version=4
+study("(Study) Kozlod + Supertrend + RSI Div Indicator", overlay = true, max_bars_back = 1000, max_lines_count = 400, max_labels_count = 400)
+
+// Inputs //
+tradeDirection = input(defval = "All", title = "Long, Short or All Setups?", options = ["All", "Longs", "Shorts"])
+checkSupertrend = input(defval = "Yes", title = "Check Supertrend Indicator", options = ["Yes", "No"])
+checkRsiIndicator = input(defval = "Yes", title = "Check RSI Div Indicator", options = ["Yes", "No"])
+// Supertrend
+atrPeriod = input(10, "Supertrend ATR Length")
+factor = input(3, "Supertrend Factor")
+// RSI DIV 
+lenFast = input(5, minval=1, title="Length Fast RSI")
+lenSlow = input(14, minval=1, title="Length Slow RSI")
+// Inputs //
+
+// Calculation HA Values 
+haopen   = 0.0
+haclose  = ((open + high + low + close)/4)
+haopen  := na(haopen[1]) ? (open + close)/2 : (haopen[1] + haclose[1]) / 2
+hahigh   = max(high, max(haopen, haclose))
+halow    = min(low,  min(haopen, haclose))
+
+// HA colors
+hacolor =  haclose  > haopen ? color.green : color.red
+
+// Signals
+turnGreen = haclose  >  haopen and haclose[1] <= haopen[1]
+turnRed   = haclose  <= haopen and haclose[1]  > haopen[1]
+
+plotshape(turnGreen, style = shape.arrowup,   location = location.belowbar, color = color.green)
+plotshape(turnRed,   style = shape.arrowdown, location = location.abovebar, color = color.red) 
+
+// Supertrend Indicator
+[supertrend, direction] = supertrend(factor, atrPeriod)
+isSupertrendBullish = direction < 0
+isSupertrendBearish = direction > 0
+// Debug
+// plotshape(isSupertrendBullish, style = shape.triangleup,   location = location.belowbar, color = color.green)
+// plotshape(isSupertrendBearish, style = shape.triangledown,   location = location.abovebar, color = color.red)
+
+// RSI DIV Indicator
+upFast = rma(max(change(close), 0), lenFast)
+downFast = rma(-min(change(close), 0), lenFast)
+rsiFast = downFast == 0 ? 100 : upFast == 0 ? 0 : 100 - (100 / (1 + upFast / downFast))
+upSlow = rma(max(change(close), 0), lenSlow)
+downSlow = rma(-min(change(close), 0), lenSlow)
+rsiSlow = downSlow == 0 ? 100 : upSlow == 0 ? 0 : 100 - (100 / (1 + upSlow / downSlow))
+//plotfast = plot(rsiFast, color=blue)
+//plotslow = plot(rsiSlow, color=orange)
+divergence = rsiFast - rsiSlow
+isDivBullish = divergence > 0
+isDivBearish = divergence < 0
+// plotdiv = plot(divergence, color = divergence > 0 ? color.lime: color.red, linewidth = 2)
+//band1 = hline(70,color=green)
+//band0 = hline(30,color=red)
+// band = hline(0)
+
+// Conditions
+goLong = turnGreen and (checkSupertrend == 'No' or (checkSupertrend == 'Yes' and isSupertrendBullish)) and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isDivBullish)) and (tradeDirection == "All" or tradeDirection == "Longs")
+goShort = turnRed and (checkSupertrend == 'No' or (checkSupertrend == 'Yes' and isSupertrendBearish)) and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isDivBearish)) and (tradeDirection == "All" or tradeDirection == "Shorts")
+
+// Shapes
+plotshape(goShort, location=location.abovebar, style=shape.labeldown, color=color.red, size=size.tiny, text="Sell", textcolor=color.white, transp=0)
+plotshape(goLong, location=location.belowbar, style=shape.labelup, color=color.green, size=size.tiny, text="Buy", textcolor=color.white, transp=0)
+
+// Alerts
+alertcondition(goShort, title='Sell Signal', message='')
+alertcondition(goLong, title='Buy Signal', message='')
+
+    
