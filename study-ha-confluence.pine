@@ -2,12 +2,15 @@
 // © Ossy1717
 
 //@version=4
-study("(Study) Kozlod + Supertrend + RSI Div Indicator", overlay = true, max_bars_back = 1000, max_lines_count = 400, max_labels_count = 400)
+study("(Study) HA + Confluence", overlay = true, max_bars_back = 1000, max_lines_count = 400, max_labels_count = 400)
 
 // Inputs //
 tradeDirection = input(defval = "All", title = "Long, Short or All Setups?", options = ["All", "Longs", "Shorts"])
 checkSupertrend = input(defval = "Yes", title = "Check Supertrend Indicator", options = ["Yes", "No"])
 checkRsiIndicator = input(defval = "Yes", title = "Check RSI Div Indicator", options = ["Yes", "No"])
+checkRsiLevel = input(defval = "Yes", title = "Check RSI Level", options = ["Yes", "No"])
+rsiBullLevel = input(defval = 50, title = "RSI Bull Level", minval = 1, maxval = 100, step = 1)
+rsiBearLevel = input(defval = 50, title = "RSI Bear Level", minval = 1, maxval = 100, step = 1)
 // Supertrend
 atrPeriod = input(10, "Supertrend ATR Length")
 factor = input(3, "Supertrend Factor")
@@ -58,9 +61,12 @@ isDivBearish = divergence < 0
 //band0 = hline(30,color=red)
 // band = hline(0)
 
+// Normal RSI
+rsi = rsi(close, lenSlow)
+
 // Conditions
-goLong = turnGreen and (checkSupertrend == 'No' or (checkSupertrend == 'Yes' and isSupertrendBullish)) and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isDivBullish)) and (tradeDirection == "All" or tradeDirection == "Longs")
-goShort = turnRed and (checkSupertrend == 'No' or (checkSupertrend == 'Yes' and isSupertrendBearish)) and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isDivBearish)) and (tradeDirection == "All" or tradeDirection == "Shorts")
+goLong = turnGreen and (checkSupertrend == 'No' or (checkSupertrend == 'Yes' and isSupertrendBullish)) and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isDivBullish)) and (tradeDirection == "All" or tradeDirection == "Longs") and (checkRsiLevel == "No" or (checkRsiLevel == "Yes" and rsi < rsiBullLevel))
+goShort = turnRed and (checkSupertrend == 'No' or (checkSupertrend == 'Yes' and isSupertrendBearish)) and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isDivBearish)) and (tradeDirection == "All" or tradeDirection == "Shorts") and (checkRsiLevel == "No" or (checkRsiLevel == "Yes" and rsi > rsiBearLevel))
 
 // Shapes
 plotshape(goShort, location=location.abovebar, style=shape.labeldown, color=color.red, size=size.tiny, text="Sell", textcolor=color.white, transp=0)

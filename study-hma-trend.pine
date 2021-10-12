@@ -34,8 +34,8 @@ buySignal = showcross and crossup and (tradeDirection == "All" or tradeDirection
 sellSignal = showcross and crossdn and (tradeDirection == "All" or tradeDirection == "Shorts")
 
 // Shapes
-plotshape(showcross and crossdn ? a : na, location=location.absolute, style=shape.labeldown, color=color.red, size=size.tiny, text="Sell", textcolor=color.white, transp=0, offset=-1)
-plotshape(showcross and crossup ? a : na, location=location.absolute, style=shape.labelup, color=color.green, size=size.tiny, text="Buy", textcolor=color.white, transp=0, offset=-1)
+plotshape(showcross and crossdn ? a : na, location=location.absolute, style=shape.labeldown, color=color.red, size=size.tiny, text="[Sell]", textcolor=color.white, transp=0, offset=-1)
+plotshape(showcross and crossup ? a : na, location=location.absolute, style=shape.labelup, color=color.green, size=size.tiny, text="[Buy]", textcolor=color.white, transp=0, offset=-1)
 
 // Alerts
 alertcondition(sellSignal, title='Sell Signal', message='')

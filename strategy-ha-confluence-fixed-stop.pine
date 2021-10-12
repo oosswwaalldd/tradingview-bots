@@ -2,15 +2,19 @@
 // © Ossy1717
 
 //@version=4
-strategy("(Strategy) Kozlod + Supertrend + RSI Div Indicator", overlay = true, initial_capital = 1000, default_qty_value = 1000, default_qty_type = strategy.cash, process_orders_on_close = true)
+strategy("(Strategy) HA + Confluence (fixed stop)", overlay = true, initial_capital = 1000, default_qty_value = 1000, default_qty_type = strategy.cash, process_orders_on_close=true)
 
 // Inputs //
 tradeDirection = input(defval = "All", title = "Long, Short or All Setups?", options = ["All", "Longs", "Shorts"])
 fromDate = input(title="From Date", type=input.time, defval=timestamp("01 Jan 2021 00:00 -0400"))
-showTrailingStopLine = input(defval = "No", title = "Show Trailing Stop Line", options = ["Yes", "No"])
 checkSupertrend = input(defval = "Yes", title = "Check Supertrend Indicator", options = ["Yes", "No"])
 checkRsiIndicator = input(defval = "Yes", title = "Check RSI Div Indicator", options = ["Yes", "No"])
-trailingStopPerc = input(defval = 1, title = "Stop Loss %", minval = .5, maxval = 100, step = .5) / 100
+checkRsiLevel = input(defval = "Yes", title = "Check RSI Level", options = ["Yes", "No"])
+rsiBullLevel = input(defval = 50, title = "RSI Bull Level", minval = 1, maxval = 100, step = 1)
+rsiBearLevel = input(defval = 50, title = "RSI Bear Level", minval = 1, maxval = 100, step = 1)
+slPerc = input(defval = 0.5, title = "Stop Loss %", minval = 0.5, step = 0.5, maxval = 100) / 100
+tpPerc = input(defval = 1, title = "Take Profit %", minval = 0.5, step = 0.5, maxval = 100) / 100
+
 // Supertrend
 atrPeriod = input(10, "Supertrend ATR Length")
 factor = input(3, "Supertrend Factor")
@@ -61,50 +65,39 @@ isDivBearish = divergence < 0
 //band0 = hline(30,color=red)
 // band = hline(0)
 
+// Normal RSI
+rsi = rsi(close, lenSlow)
+
 // Conditions
 timePeriod = time >= fromDate
 notInTrade = strategy.position_size == 0
-goLong = turnGreen and notInTrade and timePeriod and (checkSupertrend == 'No' or (checkSupertrend == 'Yes' and isSupertrendBullish)) and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isDivBullish)) and (tradeDirection == "All" or tradeDirection == "Longs")
-goShort = turnRed and notInTrade and timePeriod and (checkSupertrend == 'No' or (checkSupertrend == 'Yes' and isSupertrendBearish)) and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isDivBearish)) and (tradeDirection == "All" or tradeDirection == "Shorts")
+goLong = turnGreen and notInTrade and timePeriod and (checkSupertrend == 'No' or (checkSupertrend == 'Yes' and isSupertrendBullish)) and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isDivBullish)) and (tradeDirection == "All" or tradeDirection == "Longs") and (checkRsiLevel == "No" or (checkRsiLevel == "Yes" and rsi < rsiBullLevel))
+goShort = turnRed and notInTrade and timePeriod and (checkSupertrend == 'No' or (checkSupertrend == 'Yes' and isSupertrendBearish)) and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isDivBearish)) and (tradeDirection == "All" or tradeDirection == "Shorts") and (checkRsiLevel == "No" or (checkRsiLevel == "Yes" and rsi > rsiBearLevel))
+longSlLevel = strategy.position_avg_price * (1 - slPerc)
+longTpLevel = strategy.position_avg_price * (1 + tpPerc)
+shortSlLevel = strategy.position_avg_price * (1 + slPerc)
+shortTpLevel = strategy.position_avg_price * (1 - tpPerc)
 
-// Determine trail stop loss prices
-longStopPrice = 0.0, shortStopPrice = 0.0
-
-longStopPrice := if (strategy.position_size > 0)
-    stopValue = low * (1 - trailingStopPerc)
-    max(stopValue, longStopPrice[1])
-else
-    0
-
-shortStopPrice := if (strategy.position_size < 0)
-    stopValue = high * (1 + trailingStopPerc)
-    min(stopValue, shortStopPrice[1])
-else
-    999999
         
 // Long entries
 strategy.entry(id = "long", long = strategy.long, when = goLong)
-strategy.exit("exit", "long", stop=longStopPrice)
+strategy.exit("exit", "long", stop = longSlLevel, limit = longTpLevel)
 
 // Short entries
 strategy.entry(id = "short", long = strategy.short, when = goShort)
-strategy.exit("exit", "short", stop=shortStopPrice)
+strategy.exit("exit", "short", stop = shortSlLevel, limit = shortTpLevel)
 
-
-// Plot stop loss values for confirmation
-longTrailingStopLine = plot(series=(showTrailingStopLine == "Yes" and strategy.position_size > 0) ? longStopPrice : na,
-     color=color.orange, style=plot.style_stepline,
-     linewidth=1, title="Long Trail Stop")
-     
-shortTrailingStopLine = plot(series=(showTrailingStopLine == "Yes" and strategy.position_size < 0) ? shortStopPrice : na,
-     color=color.orange, style=plot.style_stepline,
-     linewidth=1, title="Short Trail Stop")
-     
 // Entry line
-entryPlot = plot(low, color=color.rgb(0, 0, 0, 100), style=plot.style_linebr, linewidth=1)
+entryPlot = plot(strategy.position_avg_price, color=color.gray, style=plot.style_linebr, linewidth=1)
 
-// SL area fill
-fill(longTrailingStopLine, entryPlot, color=color.orange)
-fill(entryPlot, shortTrailingStopLine, color=color.orange)
+// Long
+longSlPlot = plot(strategy.position_size < 0 ? na : longSlLevel, color=color.red, style=plot.style_linebr, linewidth=1)
+longTpPlot = plot(strategy.position_size < 0 ? na : longTpLevel, color=color.green, style=plot.style_linebr, linewidth=1)
+fill(longSlPlot, entryPlot, color=color.red)
+fill(entryPlot, longTpPlot, color=color.green)
 
-    
+// Short
+shortSlPlot = plot(strategy.position_size > 0 ? na : shortSlLevel, color=color.red, style=plot.style_linebr, linewidth=1)
+shortTpPlot = plot(strategy.position_size > 0 ? na : shortTpLevel, color=color.green, style=plot.style_linebr, linewidth=1)
+fill(entryPlot, shortSlPlot, color=color.red)
+fill(entryPlot, shortTpPlot, color=color.green)
