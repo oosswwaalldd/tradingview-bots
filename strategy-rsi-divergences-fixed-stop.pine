@@ -2,12 +2,13 @@
 // © Ossy1717
 
 //@version=4
-study("(Study) RSI + Stoch Divergences", overlay = true, max_bars_back = 1000, max_lines_count = 400, max_labels_count = 400)
+strategy("(Strategy) RSI Divergences %SL/TP", overlay = true, max_bars_back = 1000, max_lines_count = 400, max_labels_count = 400, initial_capital = 1000, default_qty_value = 1000, default_qty_type = strategy.cash)
 
 // Inputs
-onlyAPlus = input(defval = "All Setups", title = "Show Only A+ Setups", options = ["All Setups", "Only A+"], tooltip="Show only setups where RSI & Stoch are out of bands")
-showTrailingStopLine = input(defval = "Yes", title = "Show Trailing Stop Line", options = ["Yes", "No"])
-trailingStopPerc = input(defval = 2, title = "Stop Loss %", minval = 1, maxval = 100) / 100
+onlyAPlus = input(defval = false, title = "Backtest Only A+ Setups?", tooltip="A+ is when all the divergerce occurs in the oversold/overbought area")
+tradeDirection = input(defval = "All", title = "Backtest Only Long, Only Shorts or All Setups?", options = ["All", "Longs", "Shorts"])
+slPerc = input(defval = 2, title = "Stop Loss %", minval = 0.5, step = 0.5, maxval = 100) / 100
+tpPerc = input(defval = 3, title = "Take Profit %", minval = 0.5, step = 0.5, maxval = 100) / 100
 prd = input(defval = 5, title = "Pivot Period", minval = 1, maxval = 50)
 source = input(defval = "Close", title = "Source for Pivot Points", options = ["Close", "High/Low"])
 searchdiv = input(defval = "Regular", title = "Divergence Type", options = ["Regular", "Hidden", "Regular/Hidden"])
@@ -42,7 +43,7 @@ reg_div_l_style_ = input(defval = "Solid", title = "Regular Divergence Line Styl
 hid_div_l_style_ = input(defval = "Dashed", title = "Hdden Divergence Line Style", options = ["Solid", "Dashed", "Dotted"])
 reg_div_l_width = input(defval = 2, title = "Regular Divergence Line Width", minval = 1, maxval = 5)
 hid_div_l_width = input(defval = 1, title = "Hidden Divergence Line Width", minval = 1, maxval = 5)
-fromDate = input(title="From Date", type=input.time, defval=timestamp("01 Sep 2021 00:00 -0400"))
+fromDate = input(title="From Date", type=input.time, defval=timestamp("01 Jan 2021 00:00 -0400"))
 rsiOversold = input(30 , title = "RSI Oversold")
 rsiOverbought = input(70 , title = "RSI Overbought")
 stochOversold = input(30 , title = "Stoch Oversold")
@@ -346,7 +347,7 @@ for x = 0 to 10
                 y2 := (source == "Close" ? close[startpoint] : 
                                            (y % 2) == 0 ? low[startpoint] : 
                                                           high[startpoint])
-                // Line gets drawn here
+                // // Line gets drawn here
                 // new_line = showlines ? line.new(x1, y1, x2, y2,
                 //           color = array.get(div_colors, y),
                 //           style = y < 2 ? reg_div_l_style : hid_div_l_style,
@@ -386,21 +387,15 @@ for x = 0 to 10
             // -> RSI coming from outside + RSI outside: A+
             // -> RSI coming from outside + RSI inside: A
             if y == 0
-                isRsiOversold = rsi[startpoint] <= rsiOversold
-                isRsiComingFromOversold = rsi[barAmount] <= rsiOversold
-                if isRsiComingFromOversold
-                    pos_reg_div_detected := true
-                    signalTooltip = isRsiOversold ? "A+: Div In Oversold Zone" : "A: RSI NOT Oversold"
-                    signalColor = isRsiOversold ? color.green : color.blue
-                    label.new(x = x2 + 1, y = y2, yloc = yloc.belowbar, text="Long", textcolor=color.white, color = signalColor, style = label.style_label_up, size = size.small, tooltip=signalTooltip)
+        		isRsiOversold = rsi[startpoint] <= rsiOversold
+        		isRsiComingFromOversold = rsi[barAmount] <= rsiOversold
+        		if (onlyAPlus and isRsiComingFromOversold and isRsiOversold) or (not onlyAPlus and isRsiComingFromOversold)
+    				pos_reg_div_detected := true
             if y == 1
-                isRsiOverbought = rsi[startpoint] >= rsiOverbought
-                isRsiComingFromOverbought = rsi[barAmount] >= rsiOverbought
-                if isRsiComingFromOverbought
-                    neg_reg_div_detected := true
-                    signalTooltip = isRsiOverbought ? "A+: Div In Overbought Zone" : "A: RSI NOT In Overbought Zone"
-                    signalColor = isRsiOverbought ? color.red : color.orange
-                    label.new(x = x2 + 1, y = y2, yloc = yloc.abovebar, text="Short", textcolor=color.white, color = signalColor, style = label.style_label_down, size = size.small, tooltip=signalTooltip)
+        		isRsiOverbought = rsi[startpoint] >= rsiOverbought
+        		isRsiComingFromOverbought = rsi[barAmount] >= rsiOverbought
+        		if (onlyAPlus and isRsiComingFromOverbought and isRsiOverbought) or (not onlyAPlus and isRsiComingFromOverbought)
+    				neg_reg_div_detected := true
             if y == 2
                 pos_hid_div_detected := true
             if y == 3
@@ -442,6 +437,36 @@ if showindis != "Don't Show" or shownum
                                  ))
                                  
 
-// Alerts
-alertcondition(pos_reg_div_detected, title='Bullish Regular Divergence', message='Bullish Regular Divergence Detected')
-alertcondition(neg_reg_div_detected, title='Bearish Regular Divergence', message='Bearish Regular Divergence Detected')
+// Conditions
+timePeriod = time >= fromDate
+notInTrade = strategy.position_size == 0
+goLong = pos_reg_div_detected and notInTrade and timePeriod and (tradeDirection == "All" or tradeDirection == "Longs")
+goShort = neg_reg_div_detected and notInTrade and timePeriod and (tradeDirection == "All" or tradeDirection == "Shorts")
+longSlLevel = strategy.position_avg_price * (1 - slPerc)
+longTpLevel = strategy.position_avg_price * (1 + tpPerc)
+shortSlLevel = strategy.position_avg_price * (1 + slPerc)
+shortTpLevel = strategy.position_avg_price * (1 - tpPerc)
+
+        
+// Long entries
+strategy.entry(id = "long", long = strategy.long, when = goLong)
+strategy.exit("exit", "long", stop = longSlLevel, limit = longTpLevel)
+
+// // Short entries
+// strategy.entry(id = "short", long = strategy.short, when = goShort)
+// strategy.exit("exit", "short", stop = shortSlLevel, limit = shortTpLevel)
+
+// Entry line
+entryPlot = plot(strategy.position_avg_price, color=color.gray, style=plot.style_linebr, linewidth=1)
+
+// Long
+longSlPlot = plot(strategy.position_size < 0 ? na : longSlLevel, color=color.red, style=plot.style_linebr, linewidth=1)
+longTpPlot = plot(strategy.position_size < 0 ? na : longTpLevel, color=color.green, style=plot.style_linebr, linewidth=1)
+fill(longSlPlot, entryPlot, color=color.red)
+fill(entryPlot, longTpPlot, color=color.green)
+
+// // Short
+// shortSlPlot = plot(strategy.position_size > 0 ? na : shortSlLevel, color=color.red, style=plot.style_linebr, linewidth=1)
+// shortTpPlot = plot(strategy.position_size > 0 ? na : shortTpLevel, color=color.green, style=plot.style_linebr, linewidth=1)
+// fill(entryPlot, shortSlPlot, color=color.red)
+// fill(entryPlot, shortTpPlot, color=color.green)

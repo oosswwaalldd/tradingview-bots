@@ -2,13 +2,16 @@
 // © Ossy1717
 
 //@version=4
-strategy("(Strategy) RSI + Stoch Divergences %SL/TP", overlay = true, max_bars_back = 1000, max_lines_count = 400, max_labels_count = 400, initial_capital = 1000, default_qty_value = 1000, default_qty_type = strategy.cash)
+strategy("(Strategy) RSI Divergences Trailing Stop", overlay = true, max_bars_back = 1000, max_lines_count = 400, max_labels_count = 400, initial_capital = 1000, default_qty_value = 1000, default_qty_type = strategy.cash)
 
 // Inputs
 onlyAPlus = input(defval = false, title = "Backtest Only A+ Setups?", tooltip="A+ is when all the divergerce occurs in the oversold/overbought area")
 tradeDirection = input(defval = "All", title = "Backtest Only Long, Only Shorts or All Setups?", options = ["All", "Longs", "Shorts"])
-slPerc = input(defval = 2, title = "Stop Loss %", minval = 0.5, step = 0.5, maxval = 100) / 100
-tpPerc = input(defval = 3, title = "Take Profit %", minval = 0.5, step = 0.5, maxval = 100) / 100
+showTrailingStopLine = input(defval = "Yes", title = "Show Trailing Stop Line", options = ["Yes", "No"])
+trailingStopPerc = input(defval = 2, title = "Stop Loss %", minval = 0.5, step = 0.5, maxval = 100) / 100
+checkRsiIndicator = input(defval = "Yes", title = "Check RSI Div Indicator", options = ["Yes", "No"])
+lenFast = input(5, minval=1, title="Length Fast RSI")
+lenSlow = input(14, minval=1, title="Length Slow RSI")
 prd = input(defval = 5, title = "Pivot Period", minval = 1, maxval = 50)
 source = input(defval = "Close", title = "Source for Pivot Points", options = ["Close", "High/Low"])
 searchdiv = input(defval = "Regular", title = "Divergence Type", options = ["Regular", "Hidden", "Regular/Hidden"])
@@ -76,6 +79,23 @@ Obv = obv // OBV
 maFast = vwma(close, 12), maSlow = vwma(close, 26), vwmacd = maFast - maSlow // volume weighted macd
 Cmfm = ((close-low) - (high-close)) / (high - low), Cmfv = Cmfm * volume, cmf = sma(Cmfv, 21) / sma(volume,21) // Chaikin money flow
 Mfi = mfi(close, 14) // Moneyt Flow Index
+
+// RSI DIV Indicator
+upFast = rma(max(change(close), 0), lenFast)
+downFast = rma(-min(change(close), 0), lenFast)
+rsiFast = downFast == 0 ? 100 : upFast == 0 ? 0 : 100 - (100 / (1 + upFast / downFast))
+upSlow = rma(max(change(close), 0), lenSlow)
+downSlow = rma(-min(change(close), 0), lenSlow)
+rsiSlow = downSlow == 0 ? 100 : upSlow == 0 ? 0 : 100 - (100 / (1 + upSlow / downSlow))
+//plotfast = plot(rsiFast, color=blue)
+//plotslow = plot(rsiSlow, color=orange)
+divergence = rsiFast - rsiSlow
+isDivBullish = divergence > 0
+isDivBearish = divergence < 0
+// plotdiv = plot(divergence, color = divergence > 0 ? color.lime: color.red, linewidth = 2)
+//band1 = hline(70,color=green)
+//band0 = hline(30,color=red)
+// band = hline(0)
 
 // Calcs
 co = crossover(k, d)
@@ -387,15 +407,21 @@ for x = 0 to 10
             // -> RSI coming from outside + RSI outside: A+
             // -> RSI coming from outside + RSI inside: A
             if y == 0
-        		isRsiOversold = rsi[startpoint] <= rsiOversold
-        		isRsiComingFromOversold = rsi[barAmount] <= rsiOversold
-        		if (onlyAPlus and isRsiComingFromOversold and isRsiOversold) or (not onlyAPlus and isRsiComingFromOversold)
-    				pos_reg_div_detected := true
+                isRsiOversold = rsi[startpoint] <= rsiOversold
+                isRsiComingFromOversold = rsi[barAmount] <= rsiOversold
+								if ((onlyAPlus and isRsiComingFromOversold and isRsiOversold) or (not onlyAPlus and isRsiComingFromOversold) and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isDivBullish)))
+                    pos_reg_div_detected := true
+                    signalTooltip = isRsiOversold ? "A+: Div In Oversold Zone" : "A: RSI NOT Oversold"
+                    signalColor = isRsiOversold ? color.green : color.blue
+                    label.new(x = x2 + 1, y = y2, yloc = yloc.belowbar, text="Long", textcolor=color.white, color = signalColor, style = label.style_label_up, size = size.small, tooltip=signalTooltip)
             if y == 1
-        		isRsiOverbought = rsi[startpoint] >= rsiOverbought
-        		isRsiComingFromOverbought = rsi[barAmount] >= rsiOverbought
-        		if (onlyAPlus and isRsiComingFromOverbought and isRsiOverbought) or (not onlyAPlus and isRsiComingFromOverbought)
-    				neg_reg_div_detected := true
+                isRsiOverbought = rsi[startpoint] >= rsiOverbought
+                isRsiComingFromOverbought = rsi[barAmount] >= rsiOverbought
+                if (onlyAPlus and isRsiComingFromOverbought and isRsiOverbought) or (not onlyAPlus and isRsiComingFromOverbought)
+                    neg_reg_div_detected := true
+                    signalTooltip = isRsiOverbought ? "A+: Div In Overbought Zone" : "A: RSI NOT In Overbought Zone"
+                    signalColor = isRsiOverbought ? color.red : color.orange
+                    label.new(x = x2 + 1, y = y2, yloc = yloc.abovebar, text="Short", textcolor=color.white, color = signalColor, style = label.style_label_down, size = size.small, tooltip=signalTooltip)
             if y == 2
                 pos_hid_div_detected := true
             if y == 3
@@ -442,31 +468,43 @@ timePeriod = time >= fromDate
 notInTrade = strategy.position_size == 0
 goLong = pos_reg_div_detected and notInTrade and timePeriod and (tradeDirection == "All" or tradeDirection == "Longs")
 goShort = neg_reg_div_detected and notInTrade and timePeriod and (tradeDirection == "All" or tradeDirection == "Shorts")
-longSlLevel = strategy.position_avg_price * (1 - slPerc)
-longTpLevel = strategy.position_avg_price * (1 + tpPerc)
-shortSlLevel = strategy.position_avg_price * (1 + slPerc)
-shortTpLevel = strategy.position_avg_price * (1 - tpPerc)
 
+// Determine trail stop loss prices
+longStopPrice = 0.0, shortStopPrice = 0.0
+
+longStopPrice := if (strategy.position_size > 0)
+    stopValue = low * (1 - trailingStopPerc)
+    max(stopValue, longStopPrice[1])
+else
+    0
+
+shortStopPrice := if (strategy.position_size < 0)
+    stopValue = high * (1 + trailingStopPerc)
+    min(stopValue, shortStopPrice[1])
+else
+    999999
         
 // Long entries
 strategy.entry(id = "long", long = strategy.long, when = goLong)
-strategy.exit("exit", "long", stop = longSlLevel, limit = longTpLevel)
+strategy.exit("exit", "long", stop=longStopPrice)
 
-// // Short entries
-// strategy.entry(id = "short", long = strategy.short, when = goShort)
-// strategy.exit("exit", "short", stop = shortSlLevel, limit = shortTpLevel)
+// Short entries
+strategy.entry(id = "short", long = strategy.short, when = goShort)
+strategy.exit("exit", "short", stop=shortStopPrice)
 
+
+// Plot stop loss values for confirmation
+longTrailingStopLine = plot(series=(showTrailingStopLine == "Yes" and strategy.position_size > 0) ? longStopPrice : na,
+     color=color.red, style=plot.style_stepline,
+     linewidth=1, title="Long Trail Stop")
+     
+shortTrailingStopLine = plot(series=(showTrailingStopLine == "Yes" and strategy.position_size < 0) ? shortStopPrice : na,
+     color=color.red, style=plot.style_stepline,
+     linewidth=1, title="Short Trail Stop")
+     
 // Entry line
-entryPlot = plot(strategy.position_avg_price, color=color.gray, style=plot.style_linebr, linewidth=1)
+entryPlot = plot(low, color=color.rgb(0, 0, 0, 100), style=plot.style_linebr, linewidth=1)
 
-// Long
-longSlPlot = plot(strategy.position_size < 0 ? na : longSlLevel, color=color.red, style=plot.style_linebr, linewidth=1)
-longTpPlot = plot(strategy.position_size < 0 ? na : longTpLevel, color=color.green, style=plot.style_linebr, linewidth=1)
-fill(longSlPlot, entryPlot, color=color.red)
-fill(entryPlot, longTpPlot, color=color.green)
-
-// // Short
-// shortSlPlot = plot(strategy.position_size > 0 ? na : shortSlLevel, color=color.red, style=plot.style_linebr, linewidth=1)
-// shortTpPlot = plot(strategy.position_size > 0 ? na : shortTpLevel, color=color.green, style=plot.style_linebr, linewidth=1)
-// fill(entryPlot, shortSlPlot, color=color.red)
-// fill(entryPlot, shortTpPlot, color=color.green)
+// SL area fill
+fill(longTrailingStopLine, entryPlot, color=color.red)
+fill(entryPlot, shortTrailingStopLine, color=color.red)
