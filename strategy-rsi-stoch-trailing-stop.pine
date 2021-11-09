@@ -1,0 +1,83 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ossy1717
+
+//@version=4
+strategy("(Strategy) RSI + STOCH Overb/s (trailing stop)", overlay = true, initial_capital = 1000, default_qty_value = 1000, default_qty_type = strategy.cash, process_orders_on_close=true)
+
+// Inputs //
+tradeDirection = input(defval = "All", title = "Long, Short or All Setups?", options = ["All", "Longs", "Shorts"])
+fromDate = input(title="From Date", type=input.time, defval=timestamp("01 Jan 2021 00:00 -0400"))
+showTrailingStopLine = input(defval = "No", title = "Show Trailing Stop Line", options = ["Yes", "No"])
+trailingStopPerc = input(defval = 1, title = "Trailing SL %", minval = .1, maxval = 100, step = .1) / 100
+stochLen = input(14, minval = 1, title = "Stoch Length")
+periodK = input(3, title="K", minval=1)
+periodD = input(3, title="D", minval=1)
+rsiLen = input(14, minval = 1, title = "RSI Length")
+rsiOverbought = input(defval = 70, title = "RSI Overbought", minval = 1, maxval = 100, step = 1)
+rsiOversold = input(defval = 30, title = "RSI Oversold", minval = 1, maxval = 100, step = 1)
+// Inputs //
+
+// RSI
+rsi = rsi(close, rsiLen)
+// Stoch 
+stk = sma(stoch(close, high, low, stochLen), 3)
+k = sma(stoch(rsi, rsi, rsi, stochLen), periodK) // Blue
+d = sma(k, periodD)
+
+// Conditions
+isRSIOverbought = rsi >= rsiOverbought
+isRSIOversold = rsi <= rsiOversold
+isStochOverbought = k >= rsiOverbought and d >= rsiOverbought
+isStochOversold = k <= rsiOversold and d <= rsiOversold
+timePeriod = time >= fromDate
+notInTrade = strategy.position_size == 0
+goLong = notInTrade and timePeriod and isRSIOversold and isStochOversold and (tradeDirection == "All" or tradeDirection == "Longs")
+goShort = notInTrade and timePeriod and isRSIOverbought and isStochOverbought and (tradeDirection == "All" or tradeDirection == "Shorts")
+
+// Visuals
+// RSI Debug //
+// label.new(bar_index, goLong ? low : high, yloc = goLong ? yloc.belowbar : yloc.abovebar, text=tostring(rsi, '#'), textcolor=color.white, color = color.green, style = goLong ? label.style_label_up : label.style_label_down, size = size.small)
+// RSI Debug //
+plotshape(goLong, style = shape.arrowup,   location = location.belowbar, color = color.green)
+plotshape(goShort, style = shape.arrowdown, location = location.abovebar, color = color.red) 
+
+// Determine trail stop loss prices
+longStopPrice = 0.0, shortStopPrice = 0.0
+
+longStopPrice := if (strategy.position_size > 0)
+    stopValue = low * (1 - trailingStopPerc)
+    max(stopValue, longStopPrice[1])
+else
+    0
+
+shortStopPrice := if (strategy.position_size < 0)
+    stopValue = high * (1 + trailingStopPerc)
+    min(stopValue, shortStopPrice[1])
+else
+    999999
+        
+// Long entries
+strategy.entry(id = "long", long = strategy.long, when = goLong)
+strategy.exit("exit", "long", stop=longStopPrice)
+
+// Short entries
+strategy.entry(id = "short", long = strategy.short, when = goShort)
+strategy.exit("exit", "short", stop=shortStopPrice)
+
+// Plot stop loss values for confirmation
+longTrailingStopLine = plot(series=(showTrailingStopLine == "Yes" and strategy.position_size > 0) ? longStopPrice : na,
+     color=color.orange, style=plot.style_stepline,
+     linewidth=1, title="Long Trail Stop")
+     
+shortTrailingStopLine = plot(series=(showTrailingStopLine == "Yes" and strategy.position_size < 0) ? shortStopPrice : na,
+     color=color.orange, style=plot.style_stepline,
+     linewidth=1, title="Short Trail Stop")
+     
+// Entry line
+entryPlot = plot(low, color=color.rgb(0, 0, 0, 100), style=plot.style_linebr, linewidth=1)
+
+// SL area fill
+fill(longTrailingStopLine, entryPlot, color=color.orange)
+fill(entryPlot, shortTrailingStopLine, color=color.orange)
+
+    
