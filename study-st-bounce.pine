@@ -1,0 +1,58 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ossy1717
+
+//@version=4
+study("(Study) ST Bounce (trailing stop)", overlay = true)
+
+// Inputs //
+tradeDirection = input(defval = "All", title = "Long, Short or All Setups?", options = ["All", "Longs", "Shorts"])
+stAtrPeriod = input(10, "ATR Length")
+stFactor = input(3, "Factor")
+gap = input(defval = 1, title = "Price Gap Factor", minval = 0, maxval = 100, step = .1, tooltip="Gap between price and ST line") / 100
+// Inputs //
+
+// ST
+[supertrend, direction] = supertrend(stFactor, stAtrPeriod)
+
+// Helpers
+calculate_price_gap() => 
+	retValue = false
+	// If gap factor is 0, means entering when bar punches the ST line
+	if(gap == 1)
+		if(tradeDirection == "All" or tradeDirection == "Longs")
+			retValue := low <= supertrend
+		if(tradeDirection == "All" or tradeDirection == "Shorts")
+			retValue := high >= supertrend
+	else 
+		if(tradeDirection == "All" or tradeDirection == "Longs")
+			retValue := low <= supertrend * (1 + gap)
+		if(tradeDirection == "All" or tradeDirection == "Shorts")
+			retValue := high >= supertrend * (1 - gap)
+	retValue
+
+// Conditions
+upTrend = direction < 0 
+downTrend = direction > 0
+goLong = upTrend and calculate_price_gap() and (tradeDirection == "All" or tradeDirection == "Longs")
+goShort = downTrend and calculate_price_gap() and (tradeDirection == "All" or tradeDirection == "Shorts")
+
+// Visuals
+// Debug //
+// bodyMiddle = plot((open + close) / 2, display=display.none)
+// upTrend = plot(direction < 0 ? supertrend : na, "Up Trend", color = color.green, style=plot.style_linebr)
+// downTrend = plot(direction < 0? na : supertrend, "Down Trend", color = color.red, style=plot.style_linebr)
+// fill(bodyMiddle, upTrend, color.new(color.green, 90), fillgaps=false)
+// fill(bodyMiddle, downTrend, color.new(color.red, 90), fillgaps=false) 
+// Debug //
+
+// Shapes
+if(goLong)
+	label.new(x = bar_index, y = low, yloc = yloc.belowbar, text="Enter", textcolor=color.white, color = color.green, style = label.style_label_up, size = size.small)
+if(goShort)
+	label.new(x = bar_index, y = high, yloc = yloc.abovebar, text="Enter", textcolor=color.white, color = color.red, style = label.style_label_down, size = size.small)
+
+// Alerts
+alertcondition(goLong, title='Buy Signal', message='')
+alertcondition(goShort, title='Sell Signal', message='')
+
+    

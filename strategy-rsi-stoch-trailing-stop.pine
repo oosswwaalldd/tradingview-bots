@@ -9,6 +9,9 @@ tradeDirection = input(defval = "All", title = "Long, Short or All Setups?", opt
 fromDate = input(title="From Date", type=input.time, defval=timestamp("01 Jan 2021 00:00 -0400"))
 showTrailingStopLine = input(defval = "No", title = "Show Trailing Stop Line", options = ["Yes", "No"])
 trailingStopPerc = input(defval = 1, title = "Trailing SL %", minval = .1, maxval = 100, step = .1) / 100
+checkRsiIndicator = input(defval = "Yes", title = "Check RSI Div Indicator", options = ["Yes", "No"])
+lenFast = input(5, minval=1, title="Length Fast RSI")
+lenSlow = input(14, minval=1, title="Length Slow RSI")
 stochLen = input(14, minval = 1, title = "Stoch Length")
 periodK = input(3, title="K", minval=1)
 periodD = input(3, title="D", minval=1)
@@ -24,6 +27,17 @@ stk = sma(stoch(close, high, low, stochLen), 3)
 k = sma(stoch(rsi, rsi, rsi, stochLen), periodK) // Blue
 d = sma(k, periodD)
 
+// RSI DIV Indicator
+upFast = rma(max(change(close), 0), lenFast)
+downFast = rma(-min(change(close), 0), lenFast)
+rsiFast = downFast == 0 ? 100 : upFast == 0 ? 0 : 100 - (100 / (1 + upFast / downFast))
+upSlow = rma(max(change(close), 0), lenSlow)
+downSlow = rma(-min(change(close), 0), lenSlow)
+rsiSlow = downSlow == 0 ? 100 : upSlow == 0 ? 0 : 100 - (100 / (1 + upSlow / downSlow))
+divergence = rsiFast - rsiSlow
+isRSIDivBullish = divergence > 0
+isRSIDivBearish = divergence < 0
+
 // Conditions
 isRSIOverbought = rsi >= rsiOverbought
 isRSIOversold = rsi <= rsiOversold
@@ -31,8 +45,8 @@ isStochOverbought = k >= rsiOverbought and d >= rsiOverbought
 isStochOversold = k <= rsiOversold and d <= rsiOversold
 timePeriod = time >= fromDate
 notInTrade = strategy.position_size == 0
-goLong = notInTrade and timePeriod and isRSIOversold and isStochOversold and (tradeDirection == "All" or tradeDirection == "Longs")
-goShort = notInTrade and timePeriod and isRSIOverbought and isStochOverbought and (tradeDirection == "All" or tradeDirection == "Shorts")
+goLong = notInTrade and timePeriod and isRSIOversold and isStochOversold and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isRSIDivBullish)) and (tradeDirection == "All" or tradeDirection == "Longs")
+goShort = notInTrade and timePeriod and isRSIOverbought and isStochOverbought and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isRSIDivBearish)) and (tradeDirection == "All" or tradeDirection == "Shorts")
 
 // Visuals
 // RSI Debug //

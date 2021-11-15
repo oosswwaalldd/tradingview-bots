@@ -12,6 +12,9 @@ periodD = input(3, title="D", minval=1)
 rsiLen = input(14, minval = 1, title = "RSI Length")
 rsiOverbought = input(defval = 70, title = "RSI Overbought", minval = 1, maxval = 100, step = 1)
 rsiOversold = input(defval = 30, title = "RSI Oversold", minval = 1, maxval = 100, step = 1)
+checkRsiIndicator = input(defval = "Yes", title = "Check RSI Div Indicator", options = ["Yes", "No"])
+lenFast = input(5, minval=1, title="Length Fast RSI")
+lenSlow = input(14, minval=1, title="Length Slow RSI")
 // Inputs //
 
 // RSI
@@ -21,13 +24,24 @@ stk = sma(stoch(close, high, low, stochLen), 3)
 k = sma(stoch(rsi, rsi, rsi, stochLen), periodK) // Blue
 d = sma(k, periodD)
 
+// RSI DIV Indicator
+upFast = rma(max(change(close), 0), lenFast)
+downFast = rma(-min(change(close), 0), lenFast)
+rsiFast = downFast == 0 ? 100 : upFast == 0 ? 0 : 100 - (100 / (1 + upFast / downFast))
+upSlow = rma(max(change(close), 0), lenSlow)
+downSlow = rma(-min(change(close), 0), lenSlow)
+rsiSlow = downSlow == 0 ? 100 : upSlow == 0 ? 0 : 100 - (100 / (1 + upSlow / downSlow))
+divergence = rsiFast - rsiSlow
+isRSIDivBullish = divergence > 0
+isRSIDivBearish = divergence < 0
+
 // Conditions
 isRSIOverbought = rsi >= rsiOverbought
 isRSIOversold = rsi <= rsiOversold
 isStochOverbought = k >= rsiOverbought and d >= rsiOverbought
 isStochOversold = k <= rsiOversold and d <= rsiOversold
-goLong = isRSIOversold and isStochOversold and (tradeDirection == "All" or tradeDirection == "Longs")
-goShort = isRSIOverbought and isStochOverbought and (tradeDirection == "All" or tradeDirection == "Shorts")
+goLong = isRSIOversold and isStochOversold and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isRSIDivBullish)) and (tradeDirection == "All" or tradeDirection == "Longs")
+goShort = isRSIOverbought and isStochOverbought and (checkRsiIndicator == 'No' or (checkRsiIndicator == 'Yes' and isRSIDivBearish)) and (tradeDirection == "All" or tradeDirection == "Shorts")
 
 // Visuals
 // RSI Debug //
