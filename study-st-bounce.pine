@@ -2,7 +2,7 @@
 // © Ossy1717
 
 //@version=4
-study("(Study) ST Bounce (trailing stop)", overlay = true)
+study("(Study) ST Bounce", overlay = true)
 
 // Inputs //
 tradeDirection = input(defval = "All", title = "Long, Short or All Setups?", options = ["All", "Longs", "Shorts"])
@@ -15,26 +15,20 @@ gap = input(defval = 1, title = "Price Gap Factor", minval = 0, maxval = 100, st
 [supertrend, direction] = supertrend(stFactor, stAtrPeriod)
 
 // Helpers
-calculate_price_gap() => 
+calculate_price_gap(isLong) => 
 	retValue = false
-	// If gap factor is 0, means entering when bar punches the ST line
-	if(gap == 1)
-		if(tradeDirection == "All" or tradeDirection == "Longs")
-			retValue := low <= supertrend
-		if(tradeDirection == "All" or tradeDirection == "Shorts")
-			retValue := high >= supertrend
-	else 
-		if(tradeDirection == "All" or tradeDirection == "Longs")
-			retValue := low <= supertrend * (1 + gap)
-		if(tradeDirection == "All" or tradeDirection == "Shorts")
-			retValue := high >= supertrend * (1 - gap)
+	// If gap factor is 0, means entering when bar touches the ST line
+	if(isLong)
+		retValue := low <= supertrend * (1 + gap)
+	else
+		retValue := high >= supertrend * (1 - gap)
 	retValue
 
 // Conditions
 upTrend = direction < 0 
 downTrend = direction > 0
-goLong = upTrend and calculate_price_gap() and (tradeDirection == "All" or tradeDirection == "Longs")
-goShort = downTrend and calculate_price_gap() and (tradeDirection == "All" or tradeDirection == "Shorts")
+goLong = upTrend and calculate_price_gap(true) and (tradeDirection == "All" or tradeDirection == "Longs")
+goShort = downTrend and calculate_price_gap(false) and (tradeDirection == "All" or tradeDirection == "Shorts")
 
 // Visuals
 // Debug //
