@@ -1,0 +1,71 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ossy1717
+
+//@version=4
+study("(Study) Multi-ST", overlay = true, max_bars_back = 1000, max_lines_count = 400, max_labels_count = 400)
+
+buyLabelText = input("Buy", "Long Label text")
+sellLabelText = input("Sell", "Short Label text")
+showST1 = input(defval = "Yes", title = "Show ST1", options = ["Yes", "No"])
+showBackgroundFill1 = input(defval = "No", title = "Show Background Fill ST1", options = ["Yes", "No"])
+factor1 = input(3, "Factor 1")
+atrPeriod1 = input(12, "ATR Length 1")
+showST2 = input(defval = "Yes", title = "Show ST2", options = ["Yes", "No"])
+showBackgroundFill2 = input(defval = "No", title = "Show Background Fill ST2", options = ["Yes", "No"])
+factor2 = input(1, "Factor 2")
+atrPeriod2 = input(10, "ATR Length 2")
+showST3 = input(defval = "Yes", title = "Show ST3", options = ["Yes", "No"])
+showBackgroundFill3 = input(defval = "No", title = "Show Background Fill ST3", options = ["Yes", "No"])
+factor3 = input(2, "Factor 3")
+atrPeriod3 = input(11, "ATR Length 3")
+
+[supertrend1, direction1] = supertrend(factor1, atrPeriod1)
+[supertrend2, direction2] = supertrend(factor2, atrPeriod2)
+[supertrend3, direction3] = supertrend(factor3, atrPeriod3)
+
+// Middle candle body
+bodyMiddle = plot((open + close) / 2, display=display.none)
+
+// First
+upTrend1 = plot(direction1 < 0 ? supertrend1 : na, "Up Trend", color = color.green, style=plot.style_linebr)
+downTrend1 = plot(direction1 > 0 ? supertrend1 : na, "Down Trend", color = color.red, style=plot.style_linebr)
+fill(bodyMiddle, upTrend1, color.new(color.green, showBackgroundFill1 == "Yes" ? 90 : 100), fillgaps=false)
+fill(bodyMiddle, downTrend1, color.new(color.red, showBackgroundFill1 == "Yes" ? 90 : 100), fillgaps=false)
+
+// Second 
+upTrend2 = plot(direction2 < 0 ? supertrend2 : na, "Up Trend", color = color.green, style=plot.style_linebr)
+downTrend2 = plot(direction2 > 0 ? supertrend2 : na, "Down Trend", color = color.red, style=plot.style_linebr)
+fill(bodyMiddle, upTrend2, color.new(color.green, showBackgroundFill2 == "Yes" ? 90 : 100), fillgaps=false)
+fill(bodyMiddle, downTrend2, color.new(color.red, showBackgroundFill2 == "Yes" ? 90 : 100), fillgaps=false)
+
+// Third
+upTrend3 = plot(direction3 < 0 ? supertrend3 : na, "Up Trend", color = color.green, style=plot.style_linebr)
+downTrend3 = plot(direction3 > 0 ? supertrend3 : na, "Down Trend", color = color.red, style=plot.style_linebr)
+fill(bodyMiddle, upTrend3, color.new(color.green, showBackgroundFill3 == "Yes" ? 90 : 100), fillgaps=false)
+fill(bodyMiddle, downTrend3, color.new(color.red, showBackgroundFill3 == "Yes" ? 90 : 100), fillgaps=false)
+
+// Helpers
+// Checks if prev candle match conditions
+is_prev_label_rendered(trendDirection) => 
+	retValue = false
+	if(trendDirection == "up" and direction1[1] < 0 and direction2[1] < 0 and direction3[1] < 0)
+		retValue := true
+	if(trendDirection == "down" and direction1[1] > 0 and direction2[1] > 0 and direction3[1] > 0)
+		retValue := true
+	retValue
+
+
+
+// Logic
+goLong = direction1 < 0 and direction2 < 0 and direction3 < 0 and not is_prev_label_rendered("up")
+goShort = direction1 > 0 and direction2 > 0 and direction3 > 0 and not is_prev_label_rendered("down")
+
+// Shapes
+if(goLong)
+	label.new(x = bar_index, y = low, yloc = yloc.belowbar, text=buyLabelText, textcolor=color.white, color = color.green, style = label.style_label_up, size = size.small)
+if(goShort)
+	label.new(x = bar_index, y = high, yloc = yloc.abovebar, text=sellLabelText, textcolor=color.white, color = color.red, style = label.style_label_down, size = size.small)
+
+// Alerts
+alertcondition(goLong, title='Buy Signal', message='')
+alertcondition(goShort, title='Sell Signal', message='')
